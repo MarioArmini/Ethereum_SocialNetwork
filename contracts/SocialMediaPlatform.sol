@@ -13,10 +13,14 @@ contract SocialMediaPlatform {
         mapping(uint256 => string) comments;
         bool flagged;
         address[] reporters;
+        bool isVisible;
+        address moderatorAgent;
     }
 
-    mapping(uint256 => Post) public posts;
+    address _owner;
+    mapping(uint256 => Post) public _posts;
     uint256 public nextPostId = 1;
+    mapping(address => bool) public _isModerator;
 
     event PostCreated(uint256 postId, address author, string caption, string imageUrl);
     event PostLiked(uint256 postId, address liker);
@@ -24,59 +28,80 @@ contract SocialMediaPlatform {
     event PostReported(uint256 postId, address reporter);
     event PostModerated(uint256 postId);
 
-    modifier onlyModerator() {
+    modifier onlyOwner() {
+        require(_owner == msg.sender, "Not authorized");
         _;
     }
 
-    function createPost(string memory _caption, string memory _imageUrl) external {
+    modifier onlyModerator() {
+        require(_isModerator[msg.sender], "Not authorized");
+        _;
+    }
 
-        Post storage newPost = posts[nextPostId];
+    constructor(address owner) {
+        _owner = owner;
+    }
+
+    function createPost(string memory caption, string memory imageUrl) external {
+        Post storage newPost = _posts[nextPostId];
 
         newPost.author = msg.sender;
-        newPost.caption = _caption;
-        newPost.imageUrl = _imageUrl;
+        newPost.caption = caption;
+        newPost.imageUrl = imageUrl;
         newPost.likes = 0;
         newPost.commentsCount = 0;
         newPost.flagged = false;
+        newPost.isVisible = true;
 
-        emit PostCreated(nextPostId, msg.sender, _caption, _imageUrl);
+        emit PostCreated(nextPostId, msg.sender, caption, imageUrl);
         nextPostId++;
     }
 
-    function likePost(uint256 _postId) external {
-        require(_postId > 0 && _postId < nextPostId, "Invalid post ID");
-        Post storage post = posts[_postId];
+    function likePost(uint256 postId) external {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
         post.likes++;
-        emit PostLiked(_postId, msg.sender);
+        emit PostLiked(postId, msg.sender);
     }
 
-    function addComment(uint256 _postId, string memory _comment) external {
-        require(_postId > 0 && _postId < nextPostId, "Invalid post ID");
-        Post storage post = posts[_postId];
+    function addComment(uint256 postId, string memory comment) external {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
         post.commentsCount++;
-        post.comments[post.commentsCount] = _comment;
-        emit CommentAdded(_postId, msg.sender, _comment);
+        post.comments[post.commentsCount] = comment;
+        emit CommentAdded(postId, msg.sender, comment);
     }
 
-    function reportPost(uint256 _postId) external {
-        require(_postId > 0 && _postId < nextPostId, "Invalid post ID");
-        Post storage post = posts[_postId];
+    function reportPost(uint256 postId) external {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
         if (!post.flagged){
             post.flagged = true;
         }
         post.reporters.push(msg.sender);
 
-        emit PostReported(_postId, msg.sender);
+        emit PostReported(postId, msg.sender);
     }
 
-    function moderatePost(uint256 _postId) external onlyModerator {
-        require(_postId > 0 && _postId < nextPostId, "Invalid post ID");
-        Post storage post = posts[_postId];
+    function moderatePost(uint256 postId) external onlyModerator {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
         require(post.flagged, "Post not flagged");
 
-        // Aggiungi qui la logica per moderare il post (eliminazione, avvertimento, ecc.)
-        // ...
+        post.isVisible = false;
+        post.moderatorAgent = msg.sender;
 
-        emit PostModerated(_postId);
+        emit PostModerated(postId);
+    }
+
+    //Moderators methods
+    function addModerator(address moderator) external onlyOwner {
+        require(moderator != address(0x0), "Cannot add zero address");
+        _isModerator[moderator] = true;
+    }
+
+    function removeModerator(address moderator) external onlyOwner {
+        require(_isModerator[moderator], "address is not a moderator");
+        _isModerator[moderator] = false;
     }
 }
