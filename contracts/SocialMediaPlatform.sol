@@ -2,7 +2,17 @@
 
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/math/SignedMath.sol";
+
 contract SocialMediaPlatform {
+
+    using SignedMath for uint256;
+
+    uint256 constant MAX_COMMENT_LENGTH = 500;
+    uint256 constant MAX_USER_REPORTS = 5;
+    uint256 public nextPostId = 1;
+
+    address _owner;
 
     struct Post {
         address author;
@@ -10,23 +20,32 @@ contract SocialMediaPlatform {
         string imageUrl;
         uint256 likes;
         uint256 commentsCount;
-        mapping(uint256 => string) comments;
+        mapping(uint256 => Comment) comments;
         bool flagged;
         address[] reporters;
         bool isVisible;
         address moderatorAgent;
+        uint256 timeStamp;
+        uint256 latestChangesTimeStamp;
+        mapping(address => uint256) userReports;
     }
 
-    address _owner;
-    mapping(uint256 => Post) public _posts;
-    uint256 public nextPostId = 1;
-    mapping(address => bool) public _isModerator;
+    struct Comment{
+        address author;
+        string content;
+    }
 
+    // MAPPINGS
+    mapping(uint256 => Post) public _posts; 
+    mapping(address => bool) public _moderators;
+
+    // EVENTS
     event PostCreated(uint256 postId, address author, string caption, string imageUrl);
+    event PostModified(uint256 postId, address author, string caption, string imageUrl);
     event PostLiked(uint256 postId, address liker);
     event CommentAdded(uint256 postId, address commenter, string comment);
     event PostReported(uint256 postId, address reporter);
-    event PostModerated(uint256 postId);
+    event PostRemoved(uint256 postId);
 
     modifier onlyOwner() {
         require(_owner == msg.sender, "Not authorized");
@@ -34,7 +53,7 @@ contract SocialMediaPlatform {
     }
 
     modifier onlyModerator() {
-        require(_isModerator[msg.sender], "Not authorized");
+        require(_moderators[msg.sender], "Not authorized");
         _;
     }
 
@@ -52,9 +71,23 @@ contract SocialMediaPlatform {
         newPost.commentsCount = 0;
         newPost.flagged = false;
         newPost.isVisible = true;
+        newPost.timeStamp = block.timestamp;
+        newPost.latestChangesTimeStamp = 0;
 
         emit PostCreated(nextPostId, msg.sender, caption, imageUrl);
         nextPostId++;
+    }
+
+    function editPost(string memory caption, string memory imageUrl, uint256 postId) external {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+
+        post.author = msg.sender;
+        post.caption = caption;
+        post.imageUrl = imageUrl;
+        post.latestChangesTimeStamp = block.timestamp;
+
+        emit PostModified(postId, msg.sender, caption, imageUrl);
     }
 
     function likePost(uint256 postId) external {
@@ -66,24 +99,33 @@ contract SocialMediaPlatform {
 
     function addComment(uint256 postId, string memory comment) external {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        require(bytes(comment).length <= MAX_COMMENT_LENGTH, "Comment exceeds maximum length");
         Post storage post = _posts[postId];
+
+        require(post.isVisible, "Post is not visible");
+
         post.commentsCount++;
-        post.comments[post.commentsCount] = comment;
+        post.comments[post.commentsCount] = Comment(msg.sender, comment);
         emit CommentAdded(postId, msg.sender, comment);
     }
 
     function reportPost(uint256 postId) external {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
+
+        require(post.userReports[msg.sender] <= MAX_USER_REPORTS, "Max report number already reached");
+
         if (!post.flagged){
             post.flagged = true;
         }
+
         post.reporters.push(msg.sender);
+        post.userReports[msg.sender]++;
 
         emit PostReported(postId, msg.sender);
     }
 
-    function moderatePost(uint256 postId) external onlyModerator {
+    function removePost(uint256 postId) external onlyModerator {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
         require(post.flagged, "Post not flagged");
@@ -91,17 +133,52 @@ contract SocialMediaPlatform {
         post.isVisible = false;
         post.moderatorAgent = msg.sender;
 
-        emit PostModerated(postId);
+        emit PostRemoved(postId);
+    }
+
+    function getPost(uint256 postId) public view returns (address,
+        string memory,
+        string memory,
+        uint256,
+        uint256,
+        bool,
+        address[] memory,
+        bool,
+        address,
+        uint256,
+        uint256) {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+
+        require(post.isVisible, "Post is not visible");
+
+        return(post.author, post.caption, post.imageUrl, post.likes, post.commentsCount, post.flagged, post.reporters, post.isVisible, post.moderatorAgent, post.timeStamp, post.latestChangesTimeStamp);
+    }
+
+    function getPostComments(uint256 postId) public view returns (address[] memory, string[] memory) {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+
+        require(post.isVisible, "Post is not visible");
+
+        address[] memory authors = new address[](post.commentsCount);
+        string[] memory comments = new string[](post.commentsCount);
+        for (uint256 i = 1; i <= post.commentsCount; i++) {
+            authors[i - 1] = post.comments[i].author;
+            comments[i - 1] = post.comments[i].content;
+        }
+
+        return (authors, comments);
     }
 
     //Moderators methods
     function addModerator(address moderator) external onlyOwner {
-        require(moderator != address(0x0), "Cannot add zero address");
-        _isModerator[moderator] = true;
+        require(moderator != address(0), "Cannot add zero address");
+        _moderators[moderator] = true;
     }
 
     function removeModerator(address moderator) external onlyOwner {
-        require(_isModerator[moderator], "address is not a moderator");
-        _isModerator[moderator] = false;
+        require(_moderators[moderator], "Address is not a moderator");
+        _moderators[moderator] = false;
     }
 }

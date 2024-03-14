@@ -2,7 +2,7 @@
   "name": "social-network-test",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "hardhat": "^2.19.5",
-    "@openzeppelin/contracts": "^5.0.1"
+    "@openzeppelin/contracts": "^5.0.2",
+    "hardhat": "^2.19.5"
   }
 }
