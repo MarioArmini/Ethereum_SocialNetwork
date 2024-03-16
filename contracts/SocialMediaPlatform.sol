@@ -8,6 +8,7 @@ contract SocialMediaPlatform {
 
     using SignedMath for uint256;
 
+    uint256 constant MAX_CAPTION_LENGTH = 500;
     uint256 constant MAX_COMMENT_LENGTH = 500;
     uint256 constant MAX_USER_REPORTS = 5;
     uint256 public nextPostId = 1;
@@ -17,7 +18,7 @@ contract SocialMediaPlatform {
     struct Post {
         address author;
         string caption;
-        string imageUrl;
+        string imageUrlIPFSHash;
         uint256 likes;
         uint256 commentsCount;
         mapping(uint256 => Comment) comments;
@@ -40,8 +41,8 @@ contract SocialMediaPlatform {
     mapping(address => bool) public _moderators;
 
     // EVENTS
-    event PostCreated(uint256 postId, address author, string caption, string imageUrl);
-    event PostModified(uint256 postId, address author, string caption, string imageUrl);
+    event PostCreated(uint256 postId, address author, string caption, string imageUrlIPFSHash);
+    event PostModified(uint256 postId, address author, string caption, string imageUrlIPFSHash);
     event PostLiked(uint256 postId, address liker);
     event CommentAdded(uint256 postId, address commenter, string comment);
     event PostReported(uint256 postId, address reporter);
@@ -61,33 +62,39 @@ contract SocialMediaPlatform {
         _owner = owner;
     }
 
-    function createPost(string memory caption, string memory imageUrl) external {
+    function createPost(string memory caption, string memory imageUrlIPFSHash) external {
+        require(msg.sender != address(0), "Author cannot be zero address");
+        require(bytes(caption).length <= MAX_CAPTION_LENGTH, "Caption exceeds maximum length");
+
         Post storage newPost = _posts[nextPostId];
 
         newPost.author = msg.sender;
         newPost.caption = caption;
-        newPost.imageUrl = imageUrl;
+        newPost.imageUrlIPFSHash = imageUrlIPFSHash;
         newPost.likes = 0;
         newPost.commentsCount = 0;
         newPost.flagged = false;
         newPost.isVisible = true;
         newPost.timeStamp = block.timestamp;
-        newPost.latestChangesTimeStamp = 0;
+        newPost.latestChangesTimeStamp = block.timestamp;
 
-        emit PostCreated(nextPostId, msg.sender, caption, imageUrl);
+        emit PostCreated(nextPostId, msg.sender, caption, imageUrlIPFSHash);
         nextPostId++;
     }
 
-    function editPost(string memory caption, string memory imageUrl, uint256 postId) external {
+    function editPost(string memory caption, string memory imageUrlIPFSHash, uint256 postId) external {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        require(msg.sender != address(0), "Author cannot be zero address");
+        require(bytes(caption).length <= MAX_CAPTION_LENGTH, "Caption exceeds maximum length");
+
         Post storage post = _posts[postId];
 
         post.author = msg.sender;
         post.caption = caption;
-        post.imageUrl = imageUrl;
+        post.imageUrlIPFSHash = imageUrlIPFSHash;
         post.latestChangesTimeStamp = block.timestamp;
 
-        emit PostModified(postId, msg.sender, caption, imageUrl);
+        emit PostModified(postId, msg.sender, caption, imageUrlIPFSHash);
     }
 
     function likePost(uint256 postId) external {
@@ -152,7 +159,7 @@ contract SocialMediaPlatform {
 
         require(post.isVisible, "Post is not visible");
 
-        return(post.author, post.caption, post.imageUrl, post.likes, post.commentsCount, post.flagged, post.reporters, post.isVisible, post.moderatorAgent, post.timeStamp, post.latestChangesTimeStamp);
+        return(post.author, post.caption, post.imageUrlIPFSHash, post.likes, post.commentsCount, post.flagged, post.reporters, post.isVisible, post.moderatorAgent, post.timeStamp, post.latestChangesTimeStamp);
     }
 
     function getPostComments(uint256 postId) public view returns (address[] memory, string[] memory) {
