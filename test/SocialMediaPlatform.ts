@@ -279,6 +279,9 @@ describe("Social Media Platform", function () {
   });
 
   describe("Comments", function () {
+
+    const EXAMPLE_COMMENT = "This is a comment";
+
     let socialMediaPlatform: any;
     let user1: any;
     let user2: any;
@@ -293,6 +296,12 @@ describe("Social Media Platform", function () {
       await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
 
       await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+    });
+
+    describe("Adding comment", function () {
+      it("Should add a comment", async function () {
+
+      });
     });
   });
 });
