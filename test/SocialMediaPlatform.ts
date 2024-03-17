@@ -21,15 +21,16 @@ import {
       return { socialMediaPlatform, owner, moderator1, moderator2, user1, user2 };
     }
 
+    const EXAMPLE_IMG_HASH = "0x7B502C3A1F48C8609AE212CDFB639DEE39673F5E";
+    const EXAMPLE_CAPTION = "This is a caption example";
+    const BAD_EXAMPLE_CAPTION = "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies";
+    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+    const EXAMPLE_CAPTION_UPDATE = "This is a caption updated";
+    const EXAMPLE_IMG_HASH_UPDATED = "0x6T922C3A1F48C6609AE212CDFB639DXC39673F5E";
+
+    const customTimestamp = Math.floor(Date.now() / 1000) + 60; // 60 seconds into the future =)
+
     describe("Post management", function () {
-
-      const EXAMPLE_IMG_HASH = "0x7B502C3A1F48C8609AE212CDFB639DEE39673F5E";
-      const EXAMPLE_CAPTION = "This is a caption example";
-      const BAD_EXAMPLE_CAPTION = "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies";
-      const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-
-      const customTimestamp = Math.floor(Date.now() / 1000) + 60; // 60 seconds into the future =)
-
       describe("Post creation", function () {
         it("Should create post", async function () {
           const { socialMediaPlatform, user1 } = await loadFixture(deploySocialMediaPlatform);
@@ -44,6 +45,14 @@ import {
            
           await expect(socialMediaPlatform.connect(user1).createPost(BAD_EXAMPLE_CAPTION, EXAMPLE_IMG_HASH)).to.be.revertedWith("Caption exceeds maximum length");
         });
+
+        it("Events", async function () {
+          const { socialMediaPlatform, user1 } = await loadFixture(deploySocialMediaPlatform);
+
+          await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+           
+          await expect(socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH)).to.emit(socialMediaPlatform, "PostCreated");
+        });
       });
 
       describe("Get post", function () {
@@ -55,6 +64,14 @@ import {
           await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
 
           await expect(socialMediaPlatform.getPost(1)).not.to.be.reverted;
+        });
+
+        it("Should retrieve post informations", async function () {
+          const { socialMediaPlatform, user1 } = await loadFixture(deploySocialMediaPlatform);
+
+          await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+          
+          await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
            
           const [
             author,
@@ -91,6 +108,86 @@ import {
           await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
 
           await expect(socialMediaPlatform.getPost(2)).to.be.revertedWith("Invalid post ID");
+        });
+      });
+
+      describe("Post edit", function () {
+
+        let socialMediaPlatform: any;
+        let user1: any;
+        let user2: any;
+
+        beforeEach(async function () {
+          const { socialMediaPlatform: platform, user1: u1, user2: u2 } = await loadFixture(deploySocialMediaPlatform);
+
+          socialMediaPlatform = platform;
+          user1 = u1;
+          user2 = u2;
+
+          await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+          
+          await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+        });
+
+        it("Should edit post", async function () {
+          await expect(socialMediaPlatform.connect(user1).editPost(EXAMPLE_CAPTION_UPDATE, EXAMPLE_IMG_HASH_UPDATED, 1)).not.to.be.reverted;
+        });
+
+        it("Should not edit post due to invalid caption lenght", async function () {
+          await expect(socialMediaPlatform.connect(user1).editPost(BAD_EXAMPLE_CAPTION, EXAMPLE_IMG_HASH_UPDATED, 1)).to.be.revertedWith("Caption exceeds maximum length");  
+        });
+
+        it("Should not edit post due to invalid post id", async function () {
+          await expect(socialMediaPlatform.connect(user1).editPost(EXAMPLE_CAPTION_UPDATE, EXAMPLE_IMG_HASH_UPDATED, 2)).to.be.revertedWith("Invalid post ID");  
+        });
+
+        it("Should not edit post due to invalid sender address", async function () {
+          await expect(socialMediaPlatform.connect(user2).editPost(EXAMPLE_CAPTION_UPDATE, EXAMPLE_IMG_HASH_UPDATED, 1)).to.be.revertedWith("Sender must be the Author");
+        });
+
+        it("Events", async function () {       
+          await expect(socialMediaPlatform.connect(user1).editPost(EXAMPLE_CAPTION_UPDATE, EXAMPLE_IMG_HASH_UPDATED, 1)).to.emit(socialMediaPlatform, "PostModified");
+        });
+      });
+
+      describe("Post delete", function (){
+
+        let socialMediaPlatform: any;
+        let user1: any;
+        let user2: any;
+
+        beforeEach(async function () {
+          const { socialMediaPlatform: platform, user1: u1, user2: u2 } = await loadFixture(deploySocialMediaPlatform);
+
+          socialMediaPlatform = platform;
+          user1 = u1;
+          user2 = u2;
+
+          await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+          
+          await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+        });
+
+        it("Should delete post", async function () {
+          await expect(socialMediaPlatform.connect(user1).deletePost(1)).not.to.be.reverted;
+        });
+
+        it("Post should be invisible", async function () {
+          await socialMediaPlatform.connect(user1).deletePost(1);
+
+          await expect(socialMediaPlatform.getPost(1)).to.be.revertedWith("Post is not visible");
+        });
+
+        it("Should not delete post due to invalid post id", async function () {
+          await expect(socialMediaPlatform.connect(user1).deletePost(2)).to.be.revertedWith("Invalid post ID");
+        });
+
+        it("Should not delete post due to invalid sender address", async function () {
+          await expect(socialMediaPlatform.connect(user2).deletePost(1)).to.be.revertedWith("Sender must be the Author");
+        });
+
+        it("Events", async function () {    
+          await expect(socialMediaPlatform.connect(user1).deletePost(1)).to.emit(socialMediaPlatform, "PostDeleted");
         });
       });
     });

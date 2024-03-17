@@ -43,6 +43,7 @@ contract SocialMediaPlatform {
     // EVENTS
     event PostCreated(uint256 postId, address author, string caption, string imageUrlIPFSHash);
     event PostModified(uint256 postId, address author, string caption, string imageUrlIPFSHash);
+    event PostDeleted(uint256 postId);
     event PostLiked(uint256 postId, address liker);
     event CommentAdded(uint256 postId, address commenter, string comment);
     event PostReported(uint256 postId, address reporter);
@@ -89,12 +90,27 @@ contract SocialMediaPlatform {
 
         Post storage post = _posts[postId];
 
+        require(post.author == msg.sender, "Sender must be the Author");
+
         post.author = msg.sender;
         post.caption = caption;
         post.imageUrlIPFSHash = imageUrlIPFSHash;
         post.latestChangesTimeStamp = block.timestamp;
 
         emit PostModified(postId, msg.sender, caption, imageUrlIPFSHash);
+    }
+
+    function deletePost(uint256 postId) external{
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        require(msg.sender != address(0), "Author cannot be zero address");
+
+        Post storage post = _posts[postId];
+
+        require(post.author == msg.sender, "Sender must be the Author");
+
+        post.isVisible = false;
+
+        emit PostDeleted(postId);
     }
 
     function likePost(uint256 postId) external {
