@@ -303,14 +303,4 @@ contract SocialMediaPlatform {
             }
         }
     }
-
-    function removeComment(address[] storage array, address addr) private {
-        for (uint i = 0; i < array.length; i++) {
-            if (array[i] == addr) {
-                array[i] = array[array.length - 1];
-                array.pop();
-                return;
-            }
-        }
-    }
 }
