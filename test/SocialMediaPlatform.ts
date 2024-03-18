@@ -244,6 +244,10 @@ describe("Social Media Platform", function () {
       it("Should not add a like due to invalid post id", async function () {
         await expect(socialMediaPlatform.connect(user2).likePost(2)).to.be.revertedWith("Invalid post ID");
       });
+
+      it("Events", async function () {
+        await expect(socialMediaPlatform.connect(user2).likePost(1)).to.emit(socialMediaPlatform, "PostLiked");
+      });
     });
 
     describe("Removing likes", function () {
@@ -275,12 +279,17 @@ describe("Social Media Platform", function () {
       it("Should not add a like due to invalid post id", async function () {
         await expect(socialMediaPlatform.connect(user2).removeLike(2)).to.be.revertedWith("Invalid post ID");
       });
+
+      it("Events", async function () {
+        await expect(socialMediaPlatform.connect(user2).removeLike(1)).to.emit(socialMediaPlatform, "PostUnliked");
+      });
     });
   });
 
   describe("Comments", function () {
 
     const EXAMPLE_COMMENT = "This is a comment";
+    const BAD_EXAMPLE_COMMENT = "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies";
 
     let socialMediaPlatform: any;
     let user1: any;
@@ -300,7 +309,62 @@ describe("Social Media Platform", function () {
 
     describe("Adding comment", function () {
       it("Should add a comment", async function () {
+        await expect(socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT)).not.to.be.reverted;
+      });
 
+      it("Should update comments count", async function () {
+        await socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT);
+
+        const [author, caption, imageUrlIPFSHash, likes, supporters, commentsCount] = await socialMediaPlatform.getPost(1);
+
+        expect(commentsCount).to.equal(1);
+      });
+
+      it("Should not add a comment due to invalid post id", async function () {
+        await expect(socialMediaPlatform.connect(user2).addComment(2, EXAMPLE_COMMENT)).to.be.revertedWith("Invalid post ID");
+      });
+
+      it("Should not add a comment due to invalid comment lenght", async function () {
+        await expect(socialMediaPlatform.connect(user2).addComment(1, BAD_EXAMPLE_COMMENT)).to.be.revertedWith("Comment exceeds maximum length");
+      });
+
+      it("Events", async function () {
+        await expect(socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT)).to.emit(socialMediaPlatform, "CommentAdded");
+      });
+    });
+
+    describe("Removing comment", function () {
+
+      beforeEach(async function () {
+        await socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT);
+      });
+
+      it("Should remove a comment", async function () {
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 1)).not.to.be.reverted;
+      });
+
+      it("Should update comments count", async function () {
+        await socialMediaPlatform.connect(user2).removeComment(1, 1);
+
+        const [author, caption, imageUrlIPFSHash, likes, supporters, commentsCount] = await socialMediaPlatform.getPost(1);
+
+        expect(commentsCount).to.equal(0);
+      });
+
+      it("Should not remove a comment due to invalid post id", async function () {
+        await expect(socialMediaPlatform.connect(user2).removeComment(2, 1)).to.be.revertedWith("Invalid post ID");
+      });
+
+      it("Should not remove a comment due to invalid comment id", async function () {
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 2)).to.be.revertedWith("Invalid comment ID");
+      });
+
+      it("Should not remove a comment due to invalid sender address", async function () {
+        await expect(socialMediaPlatform.connect(user1).removeComment(1, 1)).to.be.revertedWith("Only comment author can remove comment");
+      });
+
+      it("Events", async function () {
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 1)).to.emit(socialMediaPlatform, "CommentRemoved");
       });
     });
   });

@@ -11,6 +11,7 @@ contract SocialMediaPlatform {
     uint256 constant MAX_COMMENT_LENGTH = 500;
     uint256 constant MAX_USER_REPORTS = 5;
     uint256 public nextPostId = 1;
+    uint256 public nextCommentId = 1;
 
     address _owner;
 
@@ -54,8 +55,10 @@ contract SocialMediaPlatform {
         string imageUrlIPFSHash
     );
     event PostDeleted(uint256 postId);
-    event PostLiked(uint256 postId, address liker);
+    event PostLiked(uint256 postId, address supporter);
+    event PostUnliked(uint256 postId, address supporter);
     event CommentAdded(uint256 postId, address commenter, string comment);
+    event CommentRemoved(uint256 postId, address commenter, uint256 commentId);
     event PostReported(uint256 postId, address reporter);
     event PostRemoved(uint256 postId);
 
@@ -156,7 +159,7 @@ contract SocialMediaPlatform {
         removeElement(post.supporters, msg.sender);
         post.likes--;
 
-        emit PostLiked(postId, msg.sender);
+        emit PostUnliked(postId, msg.sender);
     }
 
     function addComment(uint256 postId, string memory comment) external {
@@ -172,6 +175,22 @@ contract SocialMediaPlatform {
         post.commentsCount++;
         post.comments[post.commentsCount] = Comment(msg.sender, comment);
         emit CommentAdded(postId, msg.sender, comment);
+    }
+
+    function removeComment(uint256 postId, uint256 commentId) external {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        
+        Post storage post = _posts[postId];
+
+        require(commentId > 0 && commentId <= post.commentsCount, "Invalid comment ID");
+        require(post.isVisible, "Post is not visible");
+        require(post.comments[commentId].author == msg.sender, "Only comment author can remove comment");
+
+        post.comments[commentId] = post.comments[post.commentsCount];
+        delete post.comments[post.commentsCount];
+        post.commentsCount--;
+
+        emit CommentRemoved(postId, msg.sender, commentId);
     }
 
     function reportPost(uint256 postId) external {
@@ -276,6 +295,16 @@ contract SocialMediaPlatform {
 
     // Utils
     function removeElement(address[] storage array, address addr) private {
+        for (uint i = 0; i < array.length; i++) {
+            if (array[i] == addr) {
+                array[i] = array[array.length - 1];
+                array.pop();
+                return;
+            }
+        }
+    }
+
+    function removeComment(address[] storage array, address addr) private {
         for (uint i = 0; i < array.length; i++) {
             if (array[i] == addr) {
                 array[i] = array[array.length - 1];
