@@ -35,6 +35,7 @@ contract SocialMediaPlatform {
     struct Comment {
         address author;
         string content;
+        uint256 timestamp;
     }
 
     // MAPPINGS
@@ -173,7 +174,7 @@ contract SocialMediaPlatform {
         require(post.isVisible, "Post is not visible");
 
         post.commentsCount++;
-        post.comments[post.commentsCount] = Comment(msg.sender, comment);
+        post.comments[post.commentsCount] = Comment(msg.sender, comment, block.timestamp);
         emit CommentAdded(postId, msg.sender, comment);
     }
 
@@ -210,17 +211,6 @@ contract SocialMediaPlatform {
         post.userReports[msg.sender]++;
 
         emit PostReported(postId, msg.sender);
-    }
-
-    function removePost(uint256 postId) external onlyModerator {
-        require(postId > 0 && postId < nextPostId, "Invalid post ID");
-        Post storage post = _posts[postId];
-        require(post.flagged, "Post not flagged");
-
-        post.isVisible = false;
-        post.moderatorAgent = msg.sender;
-
-        emit PostRemoved(postId);
     }
 
     function getPost(
@@ -266,7 +256,7 @@ contract SocialMediaPlatform {
 
     function getPostComments(
         uint256 postId
-    ) public view returns (address[] memory, string[] memory) {
+    ) public view returns (address[] memory, string[] memory, uint256[] memory) {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
 
@@ -274,12 +264,14 @@ contract SocialMediaPlatform {
 
         address[] memory authors = new address[](post.commentsCount);
         string[] memory comments = new string[](post.commentsCount);
+        uint256[] memory timestamps = new uint256[](post.commentsCount);
         for (uint256 i = 1; i <= post.commentsCount; i++) {
             authors[i - 1] = post.comments[i].author;
             comments[i - 1] = post.comments[i].content;
+            timestamps[i-1] = post.comments[i].timestamp;
         }
 
-        return (authors, comments);
+        return (authors, comments, timestamps);
     }
 
     //Moderators methods
@@ -291,6 +283,18 @@ contract SocialMediaPlatform {
     function removeModerator(address moderator) external onlyOwner {
         require(_moderators[moderator], "Address is not a moderator");
         _moderators[moderator] = false;
+    }
+
+    function removePost(uint256 postId) external onlyModerator {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+        require(post.flagged, "Post not flagged");
+        require(post.isVisible, "Post is not visible");
+
+        post.isVisible = false;
+        post.moderatorAgent = msg.sender;
+
+        emit PostRemoved(postId);
     }
 
     // Utils

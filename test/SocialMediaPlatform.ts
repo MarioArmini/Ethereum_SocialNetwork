@@ -1,5 +1,5 @@
 import {
-  loadFixture,
+  loadFixture, time,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
@@ -365,6 +365,76 @@ describe("Social Media Platform", function () {
 
       it("Events", async function () {
         await expect(socialMediaPlatform.connect(user2).removeComment(1, 1)).to.emit(socialMediaPlatform, "CommentRemoved");
+      });
+    });
+
+    describe("Comments detail", function () {
+
+      beforeEach(async function () {
+        await socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT);
+      });
+
+      it("Should retrieve comments authors", async function () {
+        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
+        expect(authors).to.include(user2.address);
+      });
+
+      it("Should retrieve comments content", async function () {
+        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
+        expect(comments).to.include(EXAMPLE_COMMENT);
+      });
+
+      it("Should retrieve correct comment timestamps", async function () {
+        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
+
+        expect(timeStamps).to.have.lengthOf.above(0);
+        for (let i = 0; i < timeStamps.length; i++) {
+          expect(timeStamps[i]).to.be.above(0);
+        }
+      });
+    });
+  });
+
+  describe("Moderating", function () {
+    let socialMediaPlatform: any;
+    let user1: any;
+    let user2: any;
+
+    beforeEach(async function () {
+      const { socialMediaPlatform: platform, user1: u1, user2: u2 } = await loadFixture(deploySocialMediaPlatform);
+
+      socialMediaPlatform = platform;
+      user1 = u1;
+      user2 = u2;
+
+      await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+
+      await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+    });
+
+    describe("Moderators", function () {
+      describe("Adding moderator", function () {
+        it("Should add a moderator", async function () {
+
+        });
+
+        it("Should not add a moderator due to not having athorization", async function () {
+
+        });
+      });
+
+      describe("Removing moderator", function () {
+
+      });
+    });
+
+    describe("Reports", function () {
+      describe("Adding reports", function () {
+        
+      });
+
+      describe("Removing a post", function () {
+
       });
     });
   });
