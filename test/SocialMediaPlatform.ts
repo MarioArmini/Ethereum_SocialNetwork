@@ -399,13 +399,19 @@ describe("Social Media Platform", function () {
     let socialMediaPlatform: any;
     let user1: any;
     let user2: any;
+    let owner: any;
+    let moderator1: any;
+    let moderator2: any;
 
     beforeEach(async function () {
-      const { socialMediaPlatform: platform, user1: u1, user2: u2 } = await loadFixture(deploySocialMediaPlatform);
+      const { owner: own, socialMediaPlatform: platform, user1: u1, user2: u2, moderator1: mod1, moderator2: mod2 } = await loadFixture(deploySocialMediaPlatform);
 
       socialMediaPlatform = platform;
       user1 = u1;
       user2 = u2;
+      owner = own;
+      moderator1 = mod1;
+      moderator2 = mod2;
 
       await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
 
@@ -415,26 +421,138 @@ describe("Social Media Platform", function () {
     describe("Moderators", function () {
       describe("Adding moderator", function () {
         it("Should add a moderator", async function () {
-
+          await expect(socialMediaPlatform.connect(owner).addModerator(moderator1)).not.to.be.reverted;
         });
 
         it("Should not add a moderator due to not having athorization", async function () {
+          await expect(socialMediaPlatform.connect(user1).addModerator(moderator1)).to.be.revertedWith("Not authorized");
+        });
 
+        it("Events", async function () {
+          await expect(socialMediaPlatform.connect(owner).addModerator(moderator1)).to.emit(socialMediaPlatform, "ModeratorAdded");
         });
       });
 
       describe("Removing moderator", function () {
 
+        beforeEach(async function () {
+          await socialMediaPlatform.connect(owner).addModerator(moderator1);
+        });
+
+        it("Should remove a moderator", async function () {
+          await expect(socialMediaPlatform.connect(owner).removeModerator(moderator1)).not.to.be.reverted;
+        });
+
+        it("Should not remove a moderator due to not having athorization", async function () {
+          await expect(socialMediaPlatform.connect(user1).removeModerator(moderator1)).to.be.revertedWith("Not authorized");
+        });
+
+        it("Should not remove a moderator due to invalid moderator address", async function () {
+          await expect(socialMediaPlatform.connect(owner).removeModerator(moderator2)).to.be.revertedWith("Address is not a moderator");
+        });
+
+        it("Events", async function () {
+          await expect(socialMediaPlatform.connect(owner).removeModerator(moderator1)).to.emit(socialMediaPlatform, "ModeratorRemoved");
+        });
       });
     });
 
     describe("Reports", function () {
+
+      let socialMediaPlatform: any;
+        let user1: any;
+        let user2: any;
+        let moderator1: any;
+
+        const MAX_REPORTS_USER = 5;
+
+        beforeEach(async function () {
+          const { socialMediaPlatform: platform, user1: u1, user2: u2, moderator1: mod1 } = await loadFixture(deploySocialMediaPlatform);
+
+          socialMediaPlatform = platform;
+          user1 = u1;
+          user2 = u2;
+          moderator1 = mod1;
+
+          await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
+
+          await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+        });
+
       describe("Adding reports", function () {
-        
+      
+        it("Should add a report", async function () {
+          await expect(socialMediaPlatform.connect(user2).reportPost(1)).not.to.be.reverted;
+        });
+
+        it("Should not add a report due to invalid post id", async function () {
+          await expect(socialMediaPlatform.connect(user2).reportPost(2)).to.be.revertedWith("Invalid post ID");
+        });
+
+        it("Should update post flagged", async function () {
+          await socialMediaPlatform.connect(user2).reportPost(1);
+
+          const [author, caption, imageUrlIPFSHash, flagged, reporters, isVisible, moderatorAgent, timeStamp] = await socialMediaPlatform.getPostReportsInfo(1);
+
+          expect(flagged).to.be.true;
+        });
+
+        it("Should update post reporters", async function () {
+          await socialMediaPlatform.connect(user2).reportPost(1);
+
+          const [author, caption, imageUrlIPFSHash, flagged, reporters, isVisible, moderatorAgent, timeStamp] = await socialMediaPlatform.getPostReportsInfo(1);
+
+          expect(reporters).to.be.an("array").that.includes(user2.address);
+        });
+      
+        it("Events", async function () {
+          await expect(socialMediaPlatform.connect(user2).reportPost(1)).to.emit(socialMediaPlatform, "PostReported");
+        });
       });
 
       describe("Removing a post", function () {
 
+        beforeEach(async function () {
+          await socialMediaPlatform.connect(user2).reportPost(1);
+
+          await socialMediaPlatform.connect(owner).addModerator(moderator1);
+        });
+
+        it("Should remove post", async function () {
+          await expect(socialMediaPlatform.connect(moderator1).removePost(1)).not.to.be.reverted;
+        });
+
+        it("Post should be invisible", async function () {
+          await socialMediaPlatform.connect(moderator1).removePost(1);
+
+          await expect(socialMediaPlatform.getPost(1)).to.be.revertedWith("Post is not visible");
+        });
+
+        it("Should not remove post due to invalid post id", async function () {
+          await expect(socialMediaPlatform.connect(moderator1).removePost(2)).to.be.revertedWith("Invalid post ID");
+        });
+
+        it("Should not delete post due to invalid sender address", async function () {
+          await expect(socialMediaPlatform.connect(user2).removePost(1)).to.be.revertedWith("Not authorized");
+        });
+
+        it("Should not delete post due to invalid sender address", async function () {
+          await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
+
+          await expect(socialMediaPlatform.connect(moderator1).removePost(2)).to.be.revertedWith("Post is not flagged");
+        });
+
+        it("Should update moderator agent", async function () {
+          await socialMediaPlatform.connect(moderator1).removePost(1);
+
+          const [author, caption, imageUrlIPFSHash, flagged, reporters, isVisible, moderatorAgent, timeStamp] = await socialMediaPlatform.getPostReportsInfo(1);
+
+          expect(moderatorAgent).to.equal(moderator1.address);
+        });
+
+        it("Events", async function () {
+          await expect(socialMediaPlatform.connect(moderator1).removePost(1)).to.emit(socialMediaPlatform, "PostRemoved");
+        });
       });
     });
   });

@@ -9,7 +9,6 @@ contract SocialMediaPlatform {
 
     uint256 constant MAX_CAPTION_LENGTH = 500;
     uint256 constant MAX_COMMENT_LENGTH = 500;
-    uint256 constant MAX_USER_REPORTS = 5;
     uint256 public nextPostId = 1;
     uint256 public nextCommentId = 1;
 
@@ -29,7 +28,6 @@ contract SocialMediaPlatform {
         address moderatorAgent;
         uint256 timeStamp;
         uint256 latestChangesTimeStamp;
-        mapping(address => uint256) userReports;
     }
 
     struct Comment {
@@ -62,6 +60,8 @@ contract SocialMediaPlatform {
     event CommentRemoved(uint256 postId, address commenter, uint256 commentId);
     event PostReported(uint256 postId, address reporter);
     event PostRemoved(uint256 postId);
+    event ModeratorAdded(address moderator);
+    event ModeratorRemoved(address moderator);
 
     modifier onlyOwner() {
         require(_owner == msg.sender, "Not authorized");
@@ -197,18 +197,14 @@ contract SocialMediaPlatform {
     function reportPost(uint256 postId) external {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
-
-        require(
-            post.userReports[msg.sender] <= MAX_USER_REPORTS,
-            "Max report number already reached"
-        );
+        
+        require(post.isVisible, "Post is not visible");
 
         if (!post.flagged) {
             post.flagged = true;
         }
 
         post.reporters.push(msg.sender);
-        post.userReports[msg.sender]++;
 
         emit PostReported(postId, msg.sender);
     }
@@ -230,7 +226,7 @@ contract SocialMediaPlatform {
             bool,
             address,
             uint256,
-            uint256
+            uint256        
         )
     {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
@@ -251,6 +247,37 @@ contract SocialMediaPlatform {
             post.moderatorAgent,
             post.timeStamp,
             post.latestChangesTimeStamp
+        );
+    }
+
+    function getPostReportsInfo(
+        uint256 postId
+    )
+        public
+        view
+        returns (
+            address,
+            string memory,
+            string memory,
+            bool,
+            address[] memory,
+            bool,
+            address,
+            uint256
+        )
+    {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+
+        return (
+            post.author,
+            post.caption,
+            post.imageUrlIPFSHash,
+            post.flagged,
+            post.reporters,
+            post.isVisible,
+            post.moderatorAgent,
+            post.timeStamp
         );
     }
 
@@ -278,17 +305,21 @@ contract SocialMediaPlatform {
     function addModerator(address moderator) external onlyOwner {
         require(moderator != address(0), "Cannot add zero address");
         _moderators[moderator] = true;
+
+        emit ModeratorAdded(moderator);
     }
 
     function removeModerator(address moderator) external onlyOwner {
         require(_moderators[moderator], "Address is not a moderator");
         _moderators[moderator] = false;
+
+        emit ModeratorRemoved(moderator);
     }
 
     function removePost(uint256 postId) external onlyModerator {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
-        require(post.flagged, "Post not flagged");
+        require(post.flagged, "Post is not flagged");
         require(post.isVisible, "Post is not visible");
 
         post.isVisible = false;
