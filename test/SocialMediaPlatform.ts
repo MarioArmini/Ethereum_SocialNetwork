@@ -15,9 +15,11 @@ describe("Social Media Platform", function () {
     const [owner, moderator1, moderator2, user1, user2] = await ethers.getSigners();
 
     const SocialMediaPlatform = await ethers.getContractFactory("SocialMediaPlatform");
-    const socialMediaPlatform = await SocialMediaPlatform.deploy(owner.address);
+    const CommentManager = await ethers.getContractFactory("CommentManager");
+    const commentManagerContract = await CommentManager.deploy();
+    const socialMediaPlatform = await SocialMediaPlatform.deploy(owner.address, commentManagerContract);
 
-    return { socialMediaPlatform, owner, moderator1, moderator2, user1, user2 };
+    return { socialMediaPlatform, owner, moderator1, moderator2, user1, user2, commentManagerContract };
   }
 
   const EXAMPLE_IMG_HASH = "0x7B502C3A1F48C8609AE212CDFB639DEE39673F5E";
@@ -294,13 +296,15 @@ describe("Social Media Platform", function () {
     let socialMediaPlatform: any;
     let user1: any;
     let user2: any;
+    let commentManagerContract: any;
 
     beforeEach(async function () {
-      const { socialMediaPlatform: platform, user1: u1, user2: u2 } = await loadFixture(deploySocialMediaPlatform);
+      const { socialMediaPlatform: platform, user1: u1, user2: u2, commentManagerContract: commContract } = await loadFixture(deploySocialMediaPlatform);
 
       socialMediaPlatform = platform;
       user1 = u1;
       user2 = u2;
+      commentManagerContract = commContract;
 
       await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
 
@@ -340,11 +344,11 @@ describe("Social Media Platform", function () {
       });
 
       it("Should remove a comment", async function () {
-        await expect(socialMediaPlatform.connect(user2).removeComment(1, 1)).not.to.be.reverted;
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 0)).not.to.be.reverted;
       });
 
       it("Should update comments count", async function () {
-        await socialMediaPlatform.connect(user2).removeComment(1, 1);
+        await socialMediaPlatform.connect(user2).removeComment(1, 0);
 
         const [author, caption, imageUrlIPFSHash, likes, supporters, commentsCount] = await socialMediaPlatform.getPost(1);
 
@@ -356,15 +360,15 @@ describe("Social Media Platform", function () {
       });
 
       it("Should not remove a comment due to invalid comment id", async function () {
-        await expect(socialMediaPlatform.connect(user2).removeComment(1, 2)).to.be.revertedWith("Invalid comment ID");
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 2)).to.be.revertedWith("Invalid comment Id");
       });
 
       it("Should not remove a comment due to invalid sender address", async function () {
-        await expect(socialMediaPlatform.connect(user1).removeComment(1, 1)).to.be.revertedWith("Only comment author can remove comment");
+        await expect(socialMediaPlatform.connect(user1).removeComment(1, 0)).to.be.revertedWith("You can only remove your own comments");
       });
 
       it("Events", async function () {
-        await expect(socialMediaPlatform.connect(user2).removeComment(1, 1)).to.emit(socialMediaPlatform, "CommentRemoved");
+        await expect(socialMediaPlatform.connect(user2).removeComment(1, 0)).to.emit(socialMediaPlatform, "CommentRemoved");
       });
     });
 
@@ -374,23 +378,28 @@ describe("Social Media Platform", function () {
         await socialMediaPlatform.connect(user2).addComment(1, EXAMPLE_COMMENT);
       });
 
-      it("Should retrieve comments authors", async function () {
-        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
-        expect(authors).to.include(user2.address);
+      it("Should retrieve comments", async function () {
+        const comments = await socialMediaPlatform.getPostComments(1);        
+        expect(comments).to.be.an("array");
       });
 
-      it("Should retrieve comments content", async function () {
-        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
-        expect(comments).to.include(EXAMPLE_COMMENT);
+      it("Should retrieve comment author", async function () {
+        const comment = await socialMediaPlatform.getPostComment(1, 0);
+        expect(comment.author).to.eq(user2.address);
       });
 
-      it("Should retrieve correct comment timestamps", async function () {
-        const [authors, comments, timeStamps] = await socialMediaPlatform.getPostComments(1);
+      it("Should retrieve comment content", async function () {
+        const comment = await socialMediaPlatform.getPostComment(1, 0);
+        expect(comment.content).to.eq(EXAMPLE_COMMENT);
+      });
 
-        expect(timeStamps).to.have.lengthOf.above(0);
-        for (let i = 0; i < timeStamps.length; i++) {
-          expect(timeStamps[i]).to.be.above(0);
-        }
+      it("Should retrieve correct comment timestamp", async function () {
+        const comment = await socialMediaPlatform.getPostComment(1, 0);
+        expect(comment.timestamp).to.have.lengthOf.above(0);
+      });
+
+      it("Should not retrieve a comment due to invalid post id", async function () {
+        await expect(socialMediaPlatform.getPostComment(2, 0)).to.be.revertedWith("Invalid post ID");
       });
     });
   });

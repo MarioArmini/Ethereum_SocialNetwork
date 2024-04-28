@@ -3,6 +3,8 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/math/SignedMath.sol";
+import "./CommentManager.sol";
+import "./interfaces/ICommentManager.sol";
 
 contract SocialMediaPlatform {
     using SignedMath for uint256;
@@ -13,6 +15,7 @@ contract SocialMediaPlatform {
     uint256 public nextCommentId = 1;
 
     address _owner;
+    ICommentManager public _icommentManager;
 
     struct Post {
         address author;
@@ -21,19 +24,12 @@ contract SocialMediaPlatform {
         uint256 likes;
         address[] supporters;
         uint256 commentsCount;
-        mapping(uint256 => Comment) comments;
         bool flagged;
         address[] reporters;
         bool isVisible;
         address moderatorAgent;
         uint256 timeStamp;
         uint256 latestChangesTimeStamp;
-    }
-
-    struct Comment {
-        address author;
-        string content;
-        uint256 timestamp;
     }
 
     // MAPPINGS
@@ -73,8 +69,11 @@ contract SocialMediaPlatform {
         _;
     }
 
-    constructor(address owner) {
+    constructor(
+        address owner,
+        address commentManager) {
         _owner = owner;
+        _icommentManager = ICommentManager(commentManager);
     }
 
     function createPost(
@@ -165,16 +164,15 @@ contract SocialMediaPlatform {
 
     function addComment(uint256 postId, string memory comment) external {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
-        require(
-            bytes(comment).length <= MAX_COMMENT_LENGTH,
-            "Comment exceeds maximum length"
-        );
+
         Post storage post = _posts[postId];
 
         require(post.isVisible, "Post is not visible");
 
+        _icommentManager._addComment(postId, comment, msg.sender);
+
         post.commentsCount++;
-        post.comments[post.commentsCount] = Comment(msg.sender, comment, block.timestamp);
+
         emit CommentAdded(postId, msg.sender, comment);
     }
 
@@ -183,12 +181,10 @@ contract SocialMediaPlatform {
         
         Post storage post = _posts[postId];
 
-        require(commentId > 0 && commentId <= post.commentsCount, "Invalid comment ID");
         require(post.isVisible, "Post is not visible");
-        require(post.comments[commentId].author == msg.sender, "Only comment author can remove comment");
 
-        post.comments[commentId] = post.comments[post.commentsCount];
-        delete post.comments[post.commentsCount];
+        _icommentManager._removeComment(postId, commentId, msg.sender);
+
         post.commentsCount--;
 
         emit CommentRemoved(postId, msg.sender, commentId);
@@ -283,22 +279,26 @@ contract SocialMediaPlatform {
 
     function getPostComments(
         uint256 postId
-    ) public view returns (address[] memory, string[] memory, uint256[] memory) {
+    ) public view returns (ICommentManager.Comment[] memory) {
         require(postId > 0 && postId < nextPostId, "Invalid post ID");
         Post storage post = _posts[postId];
 
         require(post.isVisible, "Post is not visible");
 
-        address[] memory authors = new address[](post.commentsCount);
-        string[] memory comments = new string[](post.commentsCount);
-        uint256[] memory timestamps = new uint256[](post.commentsCount);
-        for (uint256 i = 1; i <= post.commentsCount; i++) {
-            authors[i - 1] = post.comments[i].author;
-            comments[i - 1] = post.comments[i].content;
-            timestamps[i-1] = post.comments[i].timestamp;
-        }
+        ICommentManager.Comment[] memory comments = _icommentManager._getPostComments(postId);
+        return comments;
+    }
 
-        return (authors, comments, timestamps);
+    function getPostComment(
+        uint256 postId,
+        uint256 commentId
+    ) public view returns (ICommentManager.Comment memory) {
+        require(postId > 0 && postId < nextPostId, "Invalid post ID");
+        Post storage post = _posts[postId];
+
+        require(post.isVisible, "Post is not visible");
+
+        return _icommentManager._getComment(postId, commentId);
     }
 
     //Moderators methods
