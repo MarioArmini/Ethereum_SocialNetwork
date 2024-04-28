@@ -16,10 +16,12 @@ describe("Social Media Platform", function () {
 
     const SocialMediaPlatform = await ethers.getContractFactory("SocialMediaPlatform");
     const CommentManager = await ethers.getContractFactory("CommentManager");
+    const ReportingManager = await ethers.getContractFactory("ReportingManager");
     const commentManagerContract = await CommentManager.deploy();
-    const socialMediaPlatform = await SocialMediaPlatform.deploy(owner.address, commentManagerContract);
+    const reportingManagerContract = await ReportingManager.deploy();
+    const socialMediaPlatform = await SocialMediaPlatform.deploy(owner.address, commentManagerContract, reportingManagerContract);
 
-    return { socialMediaPlatform, owner, moderator1, moderator2, user1, user2, commentManagerContract };
+    return { socialMediaPlatform, owner, moderator1, moderator2, user1, user2, commentManagerContract, reportingManagerContract };
   }
 
   const EXAMPLE_IMG_HASH = "0x7B502C3A1F48C8609AE212CDFB639DEE39673F5E";
@@ -84,7 +86,6 @@ describe("Social Media Platform", function () {
           flagged,
           reporters,
           isVisible,
-          moderatorAgent,
           timeStamp,
           latestChangesTimeStamp
         ] = await socialMediaPlatform.connect(user1).getPost(1);
@@ -97,7 +98,6 @@ describe("Social Media Platform", function () {
         expect(flagged).to.be.false;
         expect(reporters).to.be.an('array').that.is.empty;
         expect(isVisible).to.be.true;
-        expect(moderatorAgent).to.be.equal(ZERO_ADDRESS);
         expect(timeStamp).to.equal(customTimestamp);
         expect(latestChangesTimeStamp).to.equal(customTimestamp);
         expect(imageUrlIPFSHash).to.equal(EXAMPLE_IMG_HASH);
@@ -411,9 +411,10 @@ describe("Social Media Platform", function () {
     let owner: any;
     let moderator1: any;
     let moderator2: any;
+    let reportingManager: any;
 
     beforeEach(async function () {
-      const { owner: own, socialMediaPlatform: platform, user1: u1, user2: u2, moderator1: mod1, moderator2: mod2 } = await loadFixture(deploySocialMediaPlatform);
+      const { owner: own, socialMediaPlatform: platform, user1: u1, user2: u2, moderator1: mod1, moderator2: mod2, reportingManagerContract: reportingMNG } = await loadFixture(deploySocialMediaPlatform);
 
       socialMediaPlatform = platform;
       user1 = u1;
@@ -421,6 +422,7 @@ describe("Social Media Platform", function () {
       owner = own;
       moderator1 = mod1;
       moderator2 = mod2;
+      reportingManager = reportingMNG;
 
       await ethers.provider.send("evm_setNextBlockTimestamp", [customTimestamp]);
 
@@ -438,7 +440,7 @@ describe("Social Media Platform", function () {
         });
 
         it("Events", async function () {
-          await expect(socialMediaPlatform.connect(owner).addModerator(moderator1)).to.emit(socialMediaPlatform, "ModeratorAdded");
+          await expect(socialMediaPlatform.connect(owner).addModerator(moderator1)).to.emit(reportingManager, "ModeratorAdded");
         });
       });
 
@@ -461,7 +463,7 @@ describe("Social Media Platform", function () {
         });
 
         it("Events", async function () {
-          await expect(socialMediaPlatform.connect(owner).removeModerator(moderator1)).to.emit(socialMediaPlatform, "ModeratorRemoved");
+          await expect(socialMediaPlatform.connect(owner).removeModerator(moderator1)).to.emit(reportingManager, "ModeratorRemoved");
         });
       });
     });
@@ -549,14 +551,6 @@ describe("Social Media Platform", function () {
           await socialMediaPlatform.connect(user1).createPost(EXAMPLE_CAPTION, EXAMPLE_IMG_HASH);
 
           await expect(socialMediaPlatform.connect(moderator1).removePost(2)).to.be.revertedWith("Post is not flagged");
-        });
-
-        it("Should update moderator agent", async function () {
-          await socialMediaPlatform.connect(moderator1).removePost(1);
-
-          const [author, caption, imageUrlIPFSHash, flagged, reporters, isVisible, moderatorAgent, timeStamp] = await socialMediaPlatform.getPostReportsInfo(1);
-
-          expect(moderatorAgent).to.equal(moderator1.address);
         });
 
         it("Events", async function () {

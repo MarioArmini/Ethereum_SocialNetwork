@@ -14,4 +14,5 @@ interface ICommentManager{
     function _removeComment(uint256, uint256, address) external;
     function _getPostComments(uint256) external view returns(Comment[] memory);
     function _getComment(uint256, uint256) external view returns(Comment memory);
+    function _setOwner(address) external;
 }

@@ -8,6 +8,7 @@ contract CommentManager {
     using SignedMath for uint256;
 
     uint256 constant MAX_COMMENT_LENGTH = 500;
+    address _owner;
 
     struct Comment {
         address author;
@@ -17,11 +18,16 @@ contract CommentManager {
 
     mapping(uint256 => Comment[]) public postComments;
 
+    modifier onlyOwner() {
+        require(_owner == msg.sender, "Not authorized");
+        _;
+    }
+
     function _addComment(
         uint256 postId,
         string memory comment,
         address author
-    ) external {
+    ) external{
         require(bytes(comment).length > 0, "Comment cannot be empty");
         require(
             bytes(comment).length <= MAX_COMMENT_LENGTH,
@@ -37,7 +43,7 @@ contract CommentManager {
         uint256 postId,
         uint256 commentId,
         address sender
-    ) external {
+    ) external{
         require(commentId <= postComments[postId].length, "Invalid comment Id");
 
         Comment[] storage comments = postComments[postId];
@@ -69,5 +75,10 @@ contract CommentManager {
         uint256 postId
     ) external view returns (Comment[] memory) {
         return postComments[postId];
+    }
+
+    function _setOwner(address owner) external{
+        require(owner != address(0), "Cannot add zero address");
+        _owner = owner;
     }
 }

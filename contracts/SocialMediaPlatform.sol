@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "./CommentManager.sol";
 import "./interfaces/ICommentManager.sol";
+import "./interfaces/IReportingManager.sol";
 
 contract SocialMediaPlatform {
     using SignedMath for uint256;
@@ -12,10 +13,10 @@ contract SocialMediaPlatform {
     uint256 constant MAX_CAPTION_LENGTH = 500;
     uint256 constant MAX_COMMENT_LENGTH = 500;
     uint256 public nextPostId = 1;
-    uint256 public nextCommentId = 1;
 
     address _owner;
     ICommentManager public _icommentManager;
+    IReportingManager public _ireportingManager;
 
     struct Post {
         address author;
@@ -27,14 +28,12 @@ contract SocialMediaPlatform {
         bool flagged;
         address[] reporters;
         bool isVisible;
-        address moderatorAgent;
         uint256 timeStamp;
         uint256 latestChangesTimeStamp;
     }
 
     // MAPPINGS
     mapping(uint256 => Post) public _posts;
-    mapping(address => bool) public _moderators;
 
     // EVENTS
     event PostCreated(
@@ -65,15 +64,20 @@ contract SocialMediaPlatform {
     }
 
     modifier onlyModerator() {
-        require(_moderators[msg.sender], "Not authorized");
+        require(_ireportingManager._isModerator(msg.sender), "Not authorized");
         _;
     }
 
     constructor(
         address owner,
-        address commentManager) {
+        address commentManagerAddress,
+        address reportingManagerAddress) {
         _owner = owner;
-        _icommentManager = ICommentManager(commentManager);
+        _icommentManager = ICommentManager(commentManagerAddress);
+        _ireportingManager = IReportingManager(reportingManagerAddress);
+
+        _icommentManager._setOwner(owner);
+        _ireportingManager._setOwner(owner);
     }
 
     function createPost(
@@ -220,7 +224,6 @@ contract SocialMediaPlatform {
             bool,
             address[] memory,
             bool,
-            address,
             uint256,
             uint256        
         )
@@ -240,7 +243,6 @@ contract SocialMediaPlatform {
             post.flagged,
             post.reporters,
             post.isVisible,
-            post.moderatorAgent,
             post.timeStamp,
             post.latestChangesTimeStamp
         );
@@ -258,7 +260,6 @@ contract SocialMediaPlatform {
             bool,
             address[] memory,
             bool,
-            address,
             uint256
         )
     {
@@ -272,7 +273,6 @@ contract SocialMediaPlatform {
             post.flagged,
             post.reporters,
             post.isVisible,
-            post.moderatorAgent,
             post.timeStamp
         );
     }
@@ -303,17 +303,11 @@ contract SocialMediaPlatform {
 
     //Moderators methods
     function addModerator(address moderator) external onlyOwner {
-        require(moderator != address(0), "Cannot add zero address");
-        _moderators[moderator] = true;
-
-        emit ModeratorAdded(moderator);
+        _ireportingManager._addModerator(moderator);
     }
 
     function removeModerator(address moderator) external onlyOwner {
-        require(_moderators[moderator], "Address is not a moderator");
-        _moderators[moderator] = false;
-
-        emit ModeratorRemoved(moderator);
+        _ireportingManager._removeModerator(moderator);
     }
 
     function removePost(uint256 postId) external onlyModerator {
@@ -323,7 +317,6 @@ contract SocialMediaPlatform {
         require(post.isVisible, "Post is not visible");
 
         post.isVisible = false;
-        post.moderatorAgent = msg.sender;
 
         emit PostRemoved(postId);
     }
