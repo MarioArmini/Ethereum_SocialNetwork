@@ -69,7 +69,7 @@ You can run all the tests using
 
 ## Important notes
 
-This project doesn't include an updated deploy script yet. All the deploy scripts you can find are samples auto-generated into yhe Hardhat base project
+This project doesn't include an updated deploy script yet. All the deploy scripts you can find are samples auto-generated into the Hardhat base project
 ## Future implementations
 
 This is a list containing all the future implementations scheduled for the project:
